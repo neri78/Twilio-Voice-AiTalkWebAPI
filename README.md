@@ -9,7 +9,7 @@ Twilio Programmable Voiceと、AiTalk Web APIを連携させるサンプルプ�
 
 ```.envファイル
 AI_TALK_API_URL=AiTalk Web APIのエンドポイント（例 - https://api.example.com）
-AI_TALK_USERNAME=AiTalk Web APIのユーザー名（例 - userame）
+AI_TALK_USERNAME=AiTalk Web APIのユーザー名（例 - username）
 AI_TALK_PASSWORD=AiTalk Web APIのパスワード（例 - password）
 ```
 
