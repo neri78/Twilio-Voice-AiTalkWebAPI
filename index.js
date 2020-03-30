@@ -1,11 +1,12 @@
+'use strict';
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
-const fs = require('fs');
+const fsp = require('fs').promises;
 const got = require('got');
 //着信に対して応答を返すVoice用TwiMLを作成するクラス
-const VoiceResponse = require('twilio').twiml.VoiceResponse;;
+const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
 const app = express();
 const VOICE_FOLDER_NAME = 'voice_files';
@@ -14,7 +15,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, VOICE_FOLDER_NAME)));
 
 // Twilioから着信リクエストを受け取るAPI
-app.post('/incoming', async (req, res) => {
+app.post('/incoming', async (req, res, next) => {
 
     // 音声合成するテキストを設定。実際はAIエンジンなどから生成される。
     const text = '今日はお電話ありがとう！エーアイトークとTwilioを連携した音声合成デモだよ！ あなたの電話番号は' + req.body.From + 'だよね？ぜひ、両方のサービスを試してみてね。';
@@ -45,41 +46,39 @@ app.post('/incoming', async (req, res) => {
 
         if (response.statusCode === 200 ) {
             //現在のCallSidから出力ファイル名を生成
-            const outputFileName = req.body.CallSid + '.mp3';
+            const outputFileName = `${req.body.CallSid}.mp3`;
             // mp3ファイルを保存
-            await fs.promises.writeFile(
+            await fsp.writeFile(
                 path.join(VOICE_FOLDER_NAME, outputFileName), response.body, 'binary');
-    
+
             // TwiMLを初期化
             const twiml = new VoiceResponse();
             // 生成した音声を再生させる。
             twiml.play(path.join(outputFileName));
-            //ヘッダを設定し、作成したTwiMLをレスポンスとして送信
-            res.writeHead(200, {'Content-Type': 'text/xml'});
-            res.end(twiml.toString());
+            //作成したTwiMLをレスポンスとして送信
+            res.status(200).send(twiml.toString());
         }
     } catch (error) {
-            console.dir(error);
+            console.error(error);
+            next(error);
     }
 });  
 
-app.post('/statuschanged', async(req, res) => {
-    // 通話が完了した段階で該当ファイルを削除
-    if (req.body.CallStatus === "completed")
-    {
-        var filePath = 'voice_files/' + req.body.CallSid + '.mp3';
-        fs.exists(filePath, (result) =>{
-            if (result)
-            {
-                fs.unlink(filePath, (err)=>{
-                if (err) throw err;
-                console.log(filePath + 'を削除しました。');
-                });
-            }
-        });
+app.post('/statuschanged', async(req, res, next) => {
+    try {
+        // 通話が完了したかどうかを確認
+        if (req.body.CallStatus === "completed")
+        {
+            // CallSidからファイルパスを構築し、削除
+            const filePath = path.join(VOICE_FOLDER_NAME, `${req.body.CallSid}.mp3`);
+            await fsp.unlink(filePath);
+            console.info(`${filePath}を削除しました`);
+        }
+        res.sendStatus(200);
+    } catch (error) {
+        console.error(error);
+        next (error);
     }
-    res.writeHead(200, {'Content-Type': 'text/xml'});
-    res.end('OK');
 });
 
 app.listen(3000, () => console.log('Listening on port 3000'));
